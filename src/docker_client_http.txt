@@ -1,0 +1,107 @@
+#include "../include/docker_client.h"
+#include <drogon/HttpRequest.h>
+#include <json/reader.h>
+
+DockerClient::DockerClient() : base_url_("http://172.28.48.1:2375")
+{
+    client_ = drogon::HttpClient::newHttpClient(base_url_);
+}
+
+void DockerClient::logRequest(const drogon::HttpRequestPtr &req) const
+{
+    std::string full_url = base_url_ + req->getPath();
+    LOG_INFO << "Sending request to: " << full_url;
+}
+
+Json::Value DockerClient::parseDockerResponse(const drogon::HttpResponsePtr &resp)
+{
+    Json::Value root;
+    Json::CharReaderBuilder builder;
+    std::string errors;
+    std::string body = resp->getBody().data();
+    std::istringstream jsonStream(body);
+    if (!Json::parseFromStream(builder, jsonStream, &root, &errors))
+    {
+        throw std::runtime_error("Failed to parse Docker response: " + errors);
+    }
+    return root;
+}
+
+std::vector<Json::Value> DockerClient::GetContainers()
+{
+    auto req = drogon::HttpRequest::newHttpRequest();
+    req->setMethod(drogon::Get);
+    req->setPath("/containers/json?all=true");
+    req->addHeader("Host", "localhost");
+
+    logRequest(req);
+
+    auto [result, resp] = client_->sendRequest(req, 10.0);
+    if (result != drogon::ReqResult::Ok || !resp)
+    {
+        LOG_ERROR << "Drogon error: " << result
+                  << ", Status: " << (resp ? resp->statusCode() : 0)
+                  << ", Body: " << (resp ? resp->getBody() : "No response");
+        throw std::runtime_error("Network error: " + to_string(result));
+    }
+    if (resp->statusCode() != drogon::k200OK)
+    {
+        LOG_ERROR << "Docker API error: " << resp->getBody();
+        throw std::runtime_error("API error: " + std::to_string(resp->statusCode()));
+    }
+    Json::Value json = parseDockerResponse(resp);
+    std::vector<Json::Value> containers;
+    for (const auto &item : json)
+    {
+        containers.push_back(item);
+    }
+    return containers;
+}
+
+bool DockerClient::StartContainer(const std::string &containerId)
+{
+    auto req = drogon::HttpRequest::newHttpRequest();
+    req->setMethod(drogon::Post);
+    req->setPath("/containers/" + containerId + "/start");
+
+    auto [result, resp] = client_->sendRequest(req);
+
+    if (result != drogon::ReqResult::Ok || !resp)
+    {
+        throw std::runtime_error("Failed to start container: Request failed");
+    }
+
+    return resp->statusCode() == drogon::k204NoContent;
+}
+
+bool DockerClient::StopContainer(const std::string &containerId)
+{
+    auto req = drogon::HttpRequest::newHttpRequest();
+    req->setMethod(drogon::Post);
+    req->setPath("/containers/" + containerId + "/stop?t=10");
+
+    auto [result, resp] = client_->sendRequest(req);
+
+    if (result != drogon::ReqResult::Ok || !resp)
+    {
+        throw std::runtime_error("Failed to stop container: Request failed");
+    }
+
+    return resp->statusCode() == drogon::k204NoContent;
+}
+
+std::vector<Json::Value> DockerClient::GetPostgresContainers()
+{
+    auto containers = GetContainers();
+    std::vector<Json::Value> result;
+
+    for (const auto &container : containers)
+    {
+        std::string image = container["Image"].asString();
+        if (image.find("postgres") != std::string::npos)
+        {
+            result.push_back(container);
+        }
+    }
+    return result;
+}

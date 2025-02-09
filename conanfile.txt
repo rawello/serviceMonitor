@@ -1,0 +1,13 @@
+[requires]
+drogon/1.9.9
+libcurl/8.11.1
+
+[generators]
+CMakeToolchain
+CMakeDeps
+
+[options]
+boost/*:shared = False
+
+[layout]
+cmake_layout
