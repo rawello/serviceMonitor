@@ -18,19 +18,24 @@ use futures::StreamExt;
 )]
 pub async fn get_containers() -> String {
     let docker = Docker::connect_with_local_defaults().unwrap();
-    let containers = docker
-        .list_containers(None::<ListContainersOptions<String>>)
-        .await
-        .unwrap();
+
+    let options = Some(ListContainersOptions::<String> {
+        all: true, 
+        ..Default::default()
+    });
+
+    let containers = docker.list_containers(options).await.unwrap();
 
     let formatted_containers: Vec<_> = containers
         .iter()
         .map(|container| {
             format!(
-                "ID: {}, Names: {:?}, Status: {}",
-                container.id.as_ref().unwrap(),
-                container.names.as_ref().unwrap(),
-                container.status.as_ref().unwrap()
+                "ID: {}, Names: {:?}, Status: {}, Image: {}, State: {}",
+                container.id.as_ref().unwrap_or(&"Unknown".to_string()),
+                container.names.as_ref().unwrap_or(&vec!["Unknown".to_string()]),
+                container.status.as_ref().unwrap_or(&"Unknown".to_string()),
+                container.image.as_ref().unwrap_or(&"Unknown".to_string()),
+                container.state.as_ref().unwrap_or(&"Unknown".to_string())
             )
         })
         .collect();

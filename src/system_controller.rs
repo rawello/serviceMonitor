@@ -13,7 +13,7 @@ pub async fn system_uptime() -> String {
     let mut sys = System::new_all();
     sys.refresh_all();
     let uptime = sysinfo::System::uptime();
-    format!("Uptime: {} seconds", uptime)
+    format!("{}", uptime)
 }
 
 #[utoipa::path(
@@ -28,7 +28,7 @@ pub async fn system_cpu_load() -> String {
     let mut sys = System::new_all();
     sys.refresh_cpu_all();
     let cpu_usage = sys.global_cpu_usage();
-    format!("CPU Load: {:.2}%", cpu_usage)
+    format!("{:.2}", cpu_usage)
 }
 
 #[utoipa::path(
@@ -45,7 +45,7 @@ pub async fn system_memory() -> String {
     let total_memory = sys.total_memory();
     let used_memory = sys.used_memory();
     let memory_usage = (used_memory as f64 / total_memory as f64) * 100.0;
-    format!("Memory Usage: {:.2}%", memory_usage)
+    format!("{:.2} / {:.2}", used_memory, total_memory)
 }
 
 pub fn system_routes() -> Router {
